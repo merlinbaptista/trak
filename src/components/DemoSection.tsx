@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from "@/hooks/use-toast";
 import { 
   FileText, 
@@ -15,13 +16,11 @@ import {
   AlertCircle,
   ArrowRight,
   Star,
-  BarChart,
   ListFilter,
   Loader2,
   Upload,
-  Search,
-  Clock,
-  Send
+  Send,
+  Download
 } from 'lucide-react';
 
 // Mock job descriptions for demo
@@ -74,21 +73,152 @@ const candidates = [
   }
 ];
 
-// Mock interview questions
-const interviewQuestions = {
-  technical: [
-    "Can you describe a complex React component you've built and how you managed its state?",
-    "How do you optimize performance in a Node.js application when dealing with large datasets?",
-    "What TypeScript features do you find most valuable for maintaining code quality in large projects?"
-  ],
-  behavioral: [
-    "Tell me about a time when you had to meet a tight deadline on a complex project.",
-    "How do you approach learning new technologies and staying current in your field?"
-  ],
-  skillGap: [
-    "While you haven't worked directly with AWS, what cloud technologies are you familiar with and how might you approach learning AWS services?",
-    "Can you describe your experience with NoSQL databases, particularly MongoDB?"
-  ]
+// Function to analyze job description text using keyword extraction
+const analyzeJobDescription = async (text) => {
+  try {
+    // Simulate API call with text processing
+    const keywordRegex = /\b(experience|years|skills|knowledge|proficiency|familiar|expert|degree|bachelor|master|phd|certification|qualified|requirements)\b/gi;
+    const skillsRegex = /\b(react|angular|vue|javascript|typescript|python|java|c\+\+|node\.js|mongodb|sql|nosql|aws|azure|gcp|docker|kubernetes|ci\/cd|agile|scrum|kanban|product|management|strategy|research|design|communication|leadership)\b/gi;
+    
+    // Count keyword occurrences to determine importance
+    const keywordMatches = text.match(keywordRegex) || [];
+    const skillMatches = text.match(skillsRegex) || [];
+    
+    // Extract experience requirements
+    const experienceRegex = /(\d+)[\+]?\s+years?/gi;
+    const experienceMatches = text.match(experienceRegex) || [];
+    
+    // Extract education requirements
+    const educationRegex = /\b(degree|bachelor|master|phd|bs|ms|mba)\b/gi;
+    const educationMatches = text.match(educationRegex) || [];
+    
+    // Process results to structure like our mock data
+    const requiredSkills = [...new Set(skillMatches.map(skill => skill.toLowerCase()))]
+      .slice(0, 5)
+      .map(skill => skill.charAt(0).toUpperCase() + skill.slice(1));
+    
+    const preferredSkills = [...new Set(skillMatches.map(skill => skill.toLowerCase()))]
+      .slice(5, 9)
+      .map(skill => skill.charAt(0).toUpperCase() + skill.slice(1));
+    
+    const experience = experienceMatches.length > 0 
+      ? [`${experienceMatches[0]} of experience required`] 
+      : ['Experience level not specified'];
+    
+    if (educationMatches.length > 0) {
+      experience.push(`${educationMatches[0].charAt(0).toUpperCase() + educationMatches[0].slice(1)} or equivalent required`);
+    }
+    
+    return {
+      requiredSkills,
+      preferredSkills,
+      experience,
+      insights: "This role requires a combination of technical expertise and practical experience. The ideal candidate should have a strong foundation in the required skills with demonstrated experience in similar roles."
+    };
+  } catch (error) {
+    console.error('Error analyzing job description:', error);
+    return null;
+  }
+};
+
+// Function to match resume with job description
+const matchResumeWithJob = async (resumeText, jobText) => {
+  try {
+    // Extract skills from resume and job description
+    const skillsRegex = /\b(react|angular|vue|javascript|typescript|python|java|c\+\+|node\.js|express|mongodb|sql|nosql|aws|azure|gcp|docker|kubernetes|ci\/cd|agile|scrum|kanban|product|management|strategy|research|design|communication|leadership)\b/gi;
+    
+    const resumeSkills = [...new Set((resumeText.match(skillsRegex) || []).map(s => s.toLowerCase()))];
+    const jobSkills = [...new Set((jobText.match(skillsRegex) || []).map(s => s.toLowerCase()))];
+    
+    // Calculate match score based on skill overlap
+    const matchedSkills = resumeSkills.filter(skill => jobSkills.includes(skill));
+    const missingSkills = jobSkills.filter(skill => !resumeSkills.includes(skill));
+    
+    // Create partial skills (simulate skills where candidate has some but not extensive experience)
+    const partialSkills = resumeSkills
+      .filter(skill => jobSkills.includes(skill))
+      .filter(() => Math.random() > 0.7) // Randomly select some matched skills as partial
+      .slice(0, 2);
+    
+    // Calculate match percentage
+    const matchPercentage = Math.min(
+      Math.round((matchedSkills.length / Math.max(jobSkills.length, 1)) * 100),
+      99
+    );
+    
+    // Format skills for display with proper capitalization
+    const formatSkills = (skills) => {
+      return skills.map(skill => {
+        const words = skill.split('.');
+        return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('.');
+      });
+    };
+    
+    return {
+      score: matchPercentage,
+      matchedSkills: formatSkills(matchedSkills),
+      missingSkills: formatSkills(missingSkills),
+      partialSkills: formatSkills(partialSkills),
+      recommendation: missingSkills.length > 0
+        ? `This candidate has strong experience in ${matchedSkills.slice(0, 3).join(', ')} but lacks ${missingSkills.join(', ')}. Consider focusing interview questions on these gap areas.`
+        : `This candidate shows an excellent match for the required skills. Focus interview questions on practical experience with ${matchedSkills.slice(0, 3).join(', ')}.`
+    };
+  } catch (error) {
+    console.error('Error matching resume with job:', error);
+    return null;
+  }
+};
+
+// Function to generate interview questions based on job and candidate
+const generateInterviewQuestions = async (jobDescription, candidateSkills, missingSkills) => {
+  try {
+    // Create question templates for different categories
+    const technicalTemplates = [
+      "Can you describe your experience with {skill}?",
+      "What's the most challenging project you've worked on using {skill}?",
+      "How do you stay current with developments in {skill}?",
+      "Can you explain a technical problem you solved using {skill}?",
+      "What best practices do you follow when working with {skill}?"
+    ];
+    
+    const behavioralTemplates = [
+      "Tell me about a time when you had to meet a tight deadline on a complex project.",
+      "How do you approach learning new technologies and staying current in your field?",
+      "Describe a situation where you had to collaborate with a difficult team member.",
+      "Tell me about a project that failed and what you learned from it.",
+      "How do you handle feedback and criticism of your work?"
+    ];
+    
+    const skillGapTemplates = [
+      "While you haven't worked directly with {skill}, what similar technologies are you familiar with?",
+      "How would you approach learning {skill} if required for this position?",
+      "What transferable skills do you have that would help you quickly adapt to using {skill}?",
+      "Have you ever worked on projects related to {skill}, even if you weren't directly using it?",
+      "What resources would you use to get up to speed with {skill}?"
+    ];
+    
+    // Generate questions by filling in templates with actual skills
+    const technical = candidateSkills.slice(0, 3).map(skill => {
+      const template = technicalTemplates[Math.floor(Math.random() * technicalTemplates.length)];
+      return template.replace('{skill}', skill);
+    });
+    
+    const behavioral = behavioralTemplates.slice(0, 2);
+    
+    const skillGap = missingSkills.slice(0, 2).map(skill => {
+      const template = skillGapTemplates[Math.floor(Math.random() * skillGapTemplates.length)];
+      return template.replace('{skill}', skill);
+    });
+    
+    return {
+      technical,
+      behavioral,
+      skillGap: skillGap.length > 0 ? skillGap : ["No significant skill gaps identified. Focus on depth of experience instead."]
+    };
+  } catch (error) {
+    console.error('Error generating interview questions:', error);
+    return null;
+  }
 };
 
 const DemoSection = () => {
@@ -104,10 +234,16 @@ const DemoSection = () => {
   const [generatedQuestions, setGeneratedQuestions] = useState(null);
   const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
+  const [customJobDescription, setCustomJobDescription] = useState('');
+  const [questionTypes, setQuestionTypes] = useState({
+    technical: true,
+    behavioral: true,
+    skillGap: true
+  });
   const { toast } = useToast();
 
-  // Function to simulate job description analysis
-  const analyzeJobDescription = () => {
+  // Function to handle job description analysis
+  const handleAnalyzeJobDescription = async () => {
     setIsAnalyzing(true);
     setAnalysisProgress(0);
     setAnalyzedJob(null);
@@ -117,22 +253,55 @@ const DemoSection = () => {
       setAnalysisProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
-          setIsAnalyzing(false);
-          setAnalyzedJob(activeJob);
-          toast({
-            title: "Analysis Complete",
-            description: "Job description has been analyzed successfully!",
-            duration: 3000,
-          });
           return 100;
         }
-        return prev + 10;
+        return prev + 5;
       });
-    }, 200);
+    }, 50);
+    
+    try {
+      // Process the active job description
+      const jobText = customJobDescription || activeJob.description;
+      const analysis = await analyzeJobDescription(jobText);
+      
+      // Continue processing after progress reaches 100%
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        
+        // If using custom job, create a combined result
+        const result = customJobDescription ? {
+          title: "Custom Job Position",
+          company: "Your Company",
+          location: "Remote",
+          description: customJobDescription,
+          ...analysis
+        } : {
+          ...activeJob,
+          ...analysis
+        };
+        
+        setAnalyzedJob(result);
+        
+        toast({
+          title: "Analysis Complete",
+          description: "Job description has been analyzed successfully!",
+          duration: 3000,
+        });
+      }, Math.max(0, (100 - analysisProgress) * 50));
+    } catch (error) {
+      console.error("Error in job analysis:", error);
+      setIsAnalyzing(false);
+      toast({
+        title: "Analysis Error",
+        description: "There was an error analyzing the job description.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
   };
 
-  // Function to simulate resume matching
-  const matchResume = () => {
+  // Function to handle resume matching
+  const handleMatchResume = async () => {
     if (!resumeText || !jobDescription) {
       toast({
         title: "Input Required",
@@ -152,42 +321,113 @@ const DemoSection = () => {
       setMatchProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
-          setIsMatching(false);
-          setMatchResult({
-            score: Math.floor(Math.random() * 30) + 70, // Random score between 70-99
-            matchedSkills: ['JavaScript', 'React', 'Communication'],
-            missingSkills: ['AWS', 'Docker'],
-            partialSkills: ['Node.js'],
-            recommendation: "This candidate shows strong technical skills with React expertise. Consider focusing interview questions on cloud technologies to assess gaps."
-          });
-          toast({
-            title: "Match Analysis Complete",
-            description: "Resume has been matched with the job description!",
-            duration: 3000,
-          });
           return 100;
         }
-        return prev + 5;
+        return prev + 3;
       });
-    }, 150);
+    }, 30);
+    
+    try {
+      // Process the resume and job description
+      const result = await matchResumeWithJob(resumeText, jobDescription);
+      
+      // Continue processing after progress reaches 100%
+      setTimeout(() => {
+        setIsMatching(false);
+        setMatchResult(result);
+        
+        toast({
+          title: "Match Analysis Complete",
+          description: `Resume match score: ${result.score}%`,
+          duration: 3000,
+        });
+      }, Math.max(0, (100 - matchProgress) * 30));
+    } catch (error) {
+      console.error("Error in resume matching:", error);
+      setIsMatching(false);
+      toast({
+        title: "Matching Error",
+        description: "There was an error matching the resume with the job description.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
   };
 
-  // Function to simulate generating interview questions
-  const generateInterviewQuestions = () => {
+  // Function to handle interview question generation
+  const handleGenerateInterviewQuestions = async () => {
     setIsGeneratingQuestions(true);
     setGeneratedQuestions(null);
     
-    // Simulate API call delay
-    setTimeout(() => {
+    try {
+      // Generate questions based on selected job and candidate
+      let candidateSkills, missingSkills;
+      
+      if (matchResult) {
+        // Use results from resume matching if available
+        candidateSkills = matchResult.matchedSkills;
+        missingSkills = matchResult.missingSkills;
+      } else {
+        // Use mock data as fallback
+        candidateSkills = activeCandidate.skills;
+        missingSkills = activeCandidate.missingSkills;
+      }
+      
+      const jobDesc = analyzedJob?.description || activeJob.description;
+      const questions = await generateInterviewQuestions(jobDesc, candidateSkills, missingSkills);
+      
+      // Simulate API delay
+      setTimeout(() => {
+        setIsGeneratingQuestions(false);
+        setGeneratedQuestions(questions);
+        
+        toast({
+          title: "Questions Generated",
+          description: "Interview questions have been generated based on the job and candidate profile!",
+          duration: 3000,
+        });
+      }, 1000);
+    } catch (error) {
+      console.error("Error generating interview questions:", error);
       setIsGeneratingQuestions(false);
-      setGeneratedQuestions(interviewQuestions);
       toast({
-        title: "Questions Generated",
-        description: "Interview questions have been generated based on the job and candidate profile!",
+        title: "Generation Error",
+        description: "There was an error generating the interview questions.",
+        variant: "destructive",
         duration: 3000,
       });
-    }, 2000);
+    }
   };
+
+  // Function to download results as JSON
+  const handleDownloadResults = (data, filename) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Download Complete",
+      description: `${filename} has been downloaded successfully.`,
+      duration: 3000,
+    });
+  };
+
+  // Scroll to demo section when component mounts (for "See Demo" button on hero)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash === '#demo-section') {
+      const demoSection = document.getElementById('demo-section');
+      if (demoSection) {
+        demoSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, []);
 
   return (
     <section id="demo-section" className="py-20 bg-gray-50">
@@ -227,7 +467,7 @@ const DemoSection = () => {
                   <div className="mb-6">
                     <div className="mb-4">
                       <label htmlFor="job-select" className="block text-sm font-medium text-gray-700 mb-1">
-                        Or select a sample job:
+                        Use a sample job or write your own:
                       </label>
                       <select 
                         id="job-select"
@@ -235,19 +475,25 @@ const DemoSection = () => {
                         onChange={(e) => {
                           const index = parseInt(e.target.value);
                           setActiveJob(jobDescriptions[index]);
+                          setCustomJobDescription('');
                           setAnalyzedJob(null);
                         }}
                       >
                         <option value="0">Senior Full Stack Developer</option>
                         <option value="1">Product Manager</option>
+                        <option value="-1">Custom Job Description</option>
                       </select>
                     </div>
                     
                     <Textarea 
                       placeholder="Paste job description here..."
                       className="w-full h-40 mb-4"
-                      value={activeJob.description}
-                      onChange={(e) => setActiveJob({...activeJob, description: e.target.value})}
+                      value={customJobDescription || activeJob.description}
+                      onChange={(e) => {
+                        if (e.target.value !== activeJob.description) {
+                          setCustomJobDescription(e.target.value);
+                        }
+                      }}
                     />
                     
                     {isAnalyzing && (
@@ -257,23 +503,35 @@ const DemoSection = () => {
                       </div>
                     )}
                     
-                    <Button 
-                      onClick={analyzeJobDescription}
-                      disabled={isAnalyzing}
-                      className="bg-trak-purple hover:bg-purple-700 w-full"
-                    >
-                      {isAnalyzing ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          Analyze Job Description
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={handleAnalyzeJobDescription}
+                        disabled={isAnalyzing}
+                        className="bg-trak-purple hover:bg-purple-700 flex-grow"
+                      >
+                        {isAnalyzing ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            Analyze Job Description
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                      
+                      {analyzedJob && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDownloadResults(analyzedJob, 'job-analysis.json')}
+                          className="border-trak-purple text-trak-purple"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
                       )}
-                    </Button>
+                    </div>
                   </div>
                   
                   <div className="space-y-4 mt-8">
@@ -309,7 +567,7 @@ const DemoSection = () => {
                       <p className="text-gray-500 mb-6">Use the form on the left to analyze a job description and see the results here.</p>
                       <Button 
                         variant="outline" 
-                        onClick={analyzeJobDescription}
+                        onClick={handleAnalyzeJobDescription}
                         className="border-trak-purple text-trak-purple"
                       >
                         Try Sample Analysis
@@ -368,9 +626,7 @@ const DemoSection = () => {
                           <div className="pt-3 border-t border-gray-100">
                             <p className="text-sm font-medium text-gray-700 mb-2">AI Insights</p>
                             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                              {analyzedJob.title.includes("Developer") ? 
-                                "This role emphasizes both frontend and backend expertise with a strong focus on modern JavaScript frameworks and cloud technologies. The ideal candidate should have experience building scalable applications." :
-                                "This role requires strong product management skills with a focus on B2B SaaS products. The ideal candidate should have experience with agile methodologies and excellent stakeholder management abilities."}
+                              {analyzedJob.insights || "This role emphasizes a combination of technical expertise and practical experience. The ideal candidate should have a strong foundation in the required skills."}
                             </div>
                           </div>
                         </div>
@@ -459,23 +715,35 @@ const DemoSection = () => {
                       </div>
                     )}
                     
-                    <Button 
-                      onClick={matchResume}
-                      disabled={isMatching}
-                      className="bg-trak-purple hover:bg-purple-700 w-full"
-                    >
-                      {isMatching ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Analyzing match...
-                        </>
-                      ) : (
-                        <>
-                          Calculate Match Score
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={handleMatchResume}
+                        disabled={isMatching}
+                        className="bg-trak-purple hover:bg-purple-700 flex-grow"
+                      >
+                        {isMatching ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Analyzing match...
+                          </>
+                        ) : (
+                          <>
+                            Calculate Match Score
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                      
+                      {matchResult && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDownloadResults(matchResult, 'resume-match.json')}
+                          className="border-trak-purple text-trak-purple"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
                       )}
-                    </Button>
+                    </div>
                   </div>
                   
                   <div className="space-y-4 mt-8">
@@ -514,7 +782,7 @@ const DemoSection = () => {
                         onClick={() => {
                           setResumeText("Alex Johnson\nSenior Developer with 4 years experience\nSkills: React, Node.js, TypeScript, MongoDB, Express\nExperience: TechStart (4 years), WebCo (2 years)\nEducation: BS Computer Science, Stanford");
                           setJobDescription("Senior Full Stack Developer\nRequired: 5+ years experience with React, Node.js, TypeScript, MongoDB, AWS\nPreferred: GraphQL, Docker, Kubernetes\nResponsibilities: Design and develop web applications, collaborate with team, deploy to cloud");
-                          matchResume();
+                          handleMatchResume();
                         }}
                         className="border-trak-purple text-trak-purple"
                       >
@@ -602,6 +870,22 @@ const DemoSection = () => {
                             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                               <p>{matchResult.recommendation}</p>
                             </div>
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-3 border-trak-purple text-trak-purple w-full"
+                              onClick={() => {
+                                // Switch to interview questions tab and pre-populate with these results
+                                const interviewTab = document.querySelector('[data-value="interview-questions"]');
+                                if (interviewTab) {
+                                  (interviewTab as HTMLElement).click();
+                                  setTimeout(handleGenerateInterviewQuestions, 300);
+                                }
+                              }}
+                            >
+                              Generate Interview Questions
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -626,10 +910,16 @@ const DemoSection = () => {
                       </label>
                       <select 
                         className="w-full border border-gray-300 rounded-md p-2"
-                        defaultValue="developer"
+                        defaultValue="0"
+                        onChange={(e) => {
+                          const index = parseInt(e.target.value);
+                          if (index >= 0) {
+                            setActiveJob(jobDescriptions[index]);
+                          }
+                        }}
                       >
-                        <option value="developer">Senior Full Stack Developer</option>
-                        <option value="product">Product Manager</option>
+                        <option value="0">Senior Full Stack Developer</option>
+                        <option value="1">Product Manager</option>
                       </select>
                     </div>
                     
@@ -639,48 +929,90 @@ const DemoSection = () => {
                       </label>
                       <select 
                         className="w-full border border-gray-300 rounded-md p-2"
-                        defaultValue="alex"
+                        defaultValue="0"
+                        onChange={(e) => {
+                          const index = parseInt(e.target.value);
+                          if (index >= 0) {
+                            setActiveCandidate(candidates[index]);
+                          }
+                        }}
                       >
-                        <option value="alex">Alex Johnson (87% Match)</option>
-                        <option value="jordan">Jordan Smith (92% Match)</option>
+                        <option value="0">Alex Johnson (87% Match)</option>
+                        <option value="1">Jordan Smith (92% Match)</option>
                       </select>
                     </div>
                     
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-gray-700">Question Types:</p>
-                      <div className="flex flex-wrap gap-2">
-                        <div className="flex items-center">
-                          <input type="checkbox" id="technical" className="mr-1" defaultChecked />
-                          <label htmlFor="technical" className="text-sm">Technical</label>
+                      <div className="flex flex-wrap gap-3">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="technical" 
+                            checked={questionTypes.technical}
+                            onCheckedChange={(checked) => 
+                              setQuestionTypes(prev => ({ ...prev, technical: checked as boolean }))
+                            }
+                          />
+                          <label htmlFor="technical" className="text-sm font-medium">
+                            Technical
+                          </label>
                         </div>
-                        <div className="flex items-center">
-                          <input type="checkbox" id="behavioral" className="mr-1" defaultChecked />
-                          <label htmlFor="behavioral" className="text-sm">Behavioral</label>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="behavioral" 
+                            checked={questionTypes.behavioral}
+                            onCheckedChange={(checked) => 
+                              setQuestionTypes(prev => ({ ...prev, behavioral: checked as boolean }))
+                            }
+                          />
+                          <label htmlFor="behavioral" className="text-sm font-medium">
+                            Behavioral
+                          </label>
                         </div>
-                        <div className="flex items-center">
-                          <input type="checkbox" id="skills-gap" className="mr-1" defaultChecked />
-                          <label htmlFor="skills-gap" className="text-sm">Skills Gap</label>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox 
+                            id="skills-gap" 
+                            checked={questionTypes.skillGap}
+                            onCheckedChange={(checked) => 
+                              setQuestionTypes(prev => ({ ...prev, skillGap: checked as boolean }))
+                            }
+                          />
+                          <label htmlFor="skills-gap" className="text-sm font-medium">
+                            Skills Gap
+                          </label>
                         </div>
                       </div>
                     </div>
                     
-                    <Button 
-                      onClick={generateInterviewQuestions}
-                      disabled={isGeneratingQuestions}
-                      className="bg-trak-purple hover:bg-purple-700 w-full"
-                    >
-                      {isGeneratingQuestions ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Generating Questions...
-                        </>
-                      ) : (
-                        <>
-                          Generate Interview Questions
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={handleGenerateInterviewQuestions}
+                        disabled={isGeneratingQuestions}
+                        className="bg-trak-purple hover:bg-purple-700 flex-grow"
+                      >
+                        {isGeneratingQuestions ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating Questions...
+                          </>
+                        ) : (
+                          <>
+                            Generate Interview Questions
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                      
+                      {generatedQuestions && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDownloadResults(generatedQuestions, 'interview-questions.json')}
+                          className="border-trak-purple text-trak-purple"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
                       )}
-                    </Button>
+                    </div>
                   </div>
                   
                   <div className="space-y-4 mt-8">
@@ -716,7 +1048,7 @@ const DemoSection = () => {
                       <p className="text-gray-500 mb-6">Use the form on the left to generate interview questions tailored to the job and candidate.</p>
                       <Button 
                         variant="outline" 
-                        onClick={generateInterviewQuestions}
+                        onClick={handleGenerateInterviewQuestions}
                         className="border-trak-purple text-trak-purple"
                       >
                         Generate Sample Questions
@@ -730,13 +1062,13 @@ const DemoSection = () => {
                           <span className="font-medium">Interview Questions</span>
                         </div>
                         <span className="bg-trak-softPurple text-trak-purple text-xs px-2 py-1 rounded-full">
-                          Senior Full Stack Developer
+                          {activeJob.title}
                         </span>
                       </div>
                       
                       <div className="p-4">
                         <div className="flex justify-between items-center mb-4">
-                          <h4 className="font-bold">Questions for Alex Johnson</h4>
+                          <h4 className="font-bold">Questions for {activeCandidate.name}</h4>
                           <Button 
                             size="sm" 
                             variant="outline"
@@ -754,46 +1086,53 @@ const DemoSection = () => {
                         </div>
                         
                         <div className="space-y-4">
-                          <div>
-                            <h5 className="font-medium text-trak-purple mb-2">Technical Questions</h5>
-                            <div className="space-y-3">
-                              {generatedQuestions.technical.map((question, idx) => (
-                                <div key={idx} className="bg-gray-50 p-3 rounded-lg">
-                                  <p className="text-sm">{question}</p>
-                                </div>
-                              ))}
+                          {questionTypes.technical && generatedQuestions.technical.length > 0 && (
+                            <div>
+                              <h5 className="font-medium text-trak-purple mb-2">Technical Questions</h5>
+                              <div className="space-y-3">
+                                {generatedQuestions.technical.map((question, idx) => (
+                                  <div key={idx} className="bg-gray-50 p-3 rounded-lg">
+                                    <p className="text-sm">{question}</p>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
+                          
+                          {questionTypes.behavioral && generatedQuestions.behavioral.length > 0 && (
+                            <div className={questionTypes.technical ? "pt-3 border-t border-gray-100" : ""}>
+                              <h5 className="font-medium text-trak-purple mb-2">Behavioral Questions</h5>
+                              <div className="space-y-3">
+                                {generatedQuestions.behavioral.map((question, idx) => (
+                                  <div key={idx} className="bg-gray-50 p-3 rounded-lg">
+                                    <p className="text-sm">{question}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {questionTypes.skillGap && generatedQuestions.skillGap.length > 0 && (
+                            <div className={(questionTypes.technical || questionTypes.behavioral) ? "pt-3 border-t border-gray-100" : ""}>
+                              <h5 className="font-medium text-trak-purple mb-2">Skills Gap Questions</h5>
+                              <div className="space-y-3">
+                                {generatedQuestions.skillGap.map((question, idx) => (
+                                  <div key={idx} className="bg-gray-50 p-3 rounded-lg">
+                                    <p className="text-sm">{question}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           
                           <div className="pt-3 border-t border-gray-100">
-                            <h5 className="font-medium text-trak-purple mb-2">Behavioral Questions</h5>
-                            <div className="space-y-3">
-                              {generatedQuestions.behavioral.map((question, idx) => (
-                                <div key={idx} className="bg-gray-50 p-3 rounded-lg">
-                                  <p className="text-sm">{question}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <div className="pt-3 border-t border-gray-100">
-                            <h5 className="font-medium text-trak-purple mb-2">Skills Gap Questions</h5>
-                            <div className="space-y-3">
-                              {generatedQuestions.skillGap.map((question, idx) => (
-                                <div key={idx} className="bg-gray-50 p-3 rounded-lg">
-                                  <p className="text-sm">{question}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <div className="pt-3 border-t border-gray-100">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Add Custom Question</p>
                             <div className="flex">
                               <Input 
-                                placeholder="Add a custom question..."
+                                placeholder="Enter a custom interview question..."
                                 className="mr-2"
                               />
-                              <Button size="sm">
+                              <Button size="sm" className="bg-trak-purple hover:bg-purple-700">
                                 <Send className="h-4 w-4" />
                               </Button>
                             </div>

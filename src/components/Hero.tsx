@@ -2,9 +2,19 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   const scrollToDemo = () => {
+    // First navigate to ensure we're on the index page
+    navigate('/', { replace: true });
+    
+    // Then add the hash to the URL
+    window.location.hash = 'demo-section';
+    
+    // Scroll to the demo section
     const demoSection = document.getElementById('demo-section');
     if (demoSection) {
       demoSection.scrollIntoView({ behavior: 'smooth' });
