@@ -73,7 +73,7 @@ const candidates = [
 ];
 
 // Function to analyze job description text using keyword extraction
-const analyzeJobDescription = async (text: string) => {
+const analyzeJobDescription = async (text) => {
   try {
     // Simulate API call with text processing
     const keywordRegex = /\b(experience|years|skills|knowledge|proficiency|familiar|expert|degree|bachelor|master|phd|certification|qualified|requirements)\b/gi;
@@ -126,7 +126,7 @@ const analyzeJobDescription = async (text: string) => {
 };
 
 // Function to match resume with job description
-const matchResumeWithJob = async (resumeText: string, jobText: string) => {
+const matchResumeWithJob = async (resumeText, jobText) => {
   try {
     // Extract skills from resume and job description
     const skillsRegex = /\b(react|angular|vue|javascript|typescript|python|java|c\+\+|node\.js|express|mongodb|sql|nosql|aws|azure|gcp|docker|kubernetes|ci\/cd|agile|scrum|kanban|product|management|strategy|research|design|communication|leadership)\b/gi;
@@ -151,7 +151,7 @@ const matchResumeWithJob = async (resumeText: string, jobText: string) => {
     );
     
     // Format skills for display with proper capitalization
-    const formatSkills = (skills: string[]) => {
+    const formatSkills = (skills) => {
       return skills.map(skill => {
         const words = skill.split('.');
         return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('.');
@@ -174,7 +174,7 @@ const matchResumeWithJob = async (resumeText: string, jobText: string) => {
 };
 
 // Function to generate interview questions based on job and candidate
-const generateInterviewQuestions = async (jobDescription: string, candidateSkills: string[], missingSkills: string[]) => {
+const generateInterviewQuestions = async (jobDescription, candidateSkills, missingSkills) => {
   try {
     // Create question templates for different categories
     const technicalTemplates = [
@@ -404,7 +404,7 @@ const DemoSection = () => {
   };
 
   // Function to download results as JSON
-  const handleDownloadResults = (data: any, filename: string) => {
+  const handleDownloadResults = (data, filename) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -775,4 +775,4 @@ const DemoSection = () => {
                   </div>
                 </div>
                 
-                <div className="w-full lg:
+                <div className="w-full lg:w-1/2 bg-gray-50 p-8 border-t lg:border-
